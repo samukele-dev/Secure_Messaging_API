@@ -19,23 +19,29 @@ MESSAGE_STORE = {}
 USER_SALTS = {}
 
 def generate_salt():
+    # Generate a random 16-byte salt
     return os.urandom(16)
 
-
 def derive_key(user_id, salt=None):
+    # Use the provided salt, or retrieve the salt from USER_SALTS if not given
     if salt is None:
         salt = USER_SALTS.get(user_id)
         if salt is None:
-            raise ValueError("Salt not found for user")
+            raise ValueError("Salt not found for user")  # Raise error if salt is not found
+    
+    # Set up PBKDF2HMAC to derive a key using SHA-256
     kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100000,
-        backend=default_backend()
+        algorithm=hashes.SHA256(),  # Use SHA-256 for hashing
+        length=32,  # Key length (32 bytes)
+        salt=salt,  # Salt for randomness
+        iterations=100000,  # Number of iterations for added security
+        backend=default_backend()  # Use the default cryptographic backend
     )
+    
+    # Derive the key from the user ID
     key = kdf.derive(user_id.encode('utf-8'))
     return key
+
 
 
 def encrypt_message(message, user_id):
