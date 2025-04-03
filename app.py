@@ -4,6 +4,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
+from debug_code import broken_decrypt
+
 import base64
 
 
@@ -94,3 +96,63 @@ def decrypt_message(encrypted_message_b64, user_id):
     except Exception as e:
         # Return error message if decryption fails
         return f"Decryption failed: {e}"
+
+
+@app.route('/messages', methods=['POST'])
+def store_message():
+    # Get JSON data from the request
+    data = request.get_json()
+    user_id = data.get('userId')
+    message = data.get('message')
+
+    # Check if user_id and message are provided
+    if not user_id or not message:
+        return jsonify({'error': 'Missing userId or message'}), 400
+
+    # Encrypt the message for the user
+    encrypted_message = encrypt_message(message, user_id)
+
+    # Store the encrypted message under the user's ID
+    if user_id not in MESSAGE_STORE:
+        MESSAGE_STORE[user_id] = []
+    MESSAGE_STORE[user_id].append(encrypted_message)
+
+    # Return success response
+    return jsonify({'status': 'Message stored successfully'}), 201
+
+@app.route('/messages/<user_id>', methods=['GET'])
+def get_messages(user_id):
+    # Check if the user has any messages stored
+    if user_id not in MESSAGE_STORE:
+        return jsonify({'messages': []}), 200
+
+    decrypted_messages = []
+    # Decrypt each message for the user
+    for encrypted_message in MESSAGE_STORE.get(user_id, []):
+        decrypted = decrypt_message(encrypted_message, user_id)
+        if decrypted.startswith("Decryption failed"):
+            print(f"Warning: Could not decrypt message for user {user_id}: {decrypted}")
+        else:
+            decrypted_messages.append(decrypted)
+
+    # Return the decrypted messages
+    return jsonify({'messages': decrypted_messages}), 200
+
+@app.route('/debug/decrypt', methods=['POST'])
+def debug_decrypt_endpoint():
+    # Get JSON data from the request for debugging
+    data = request.get_json()
+    encrypted_message = data.get('encrypted_message')
+    user_id = data.get('userId')
+
+    # Check if both encrypted_message and user_id are provided
+    if not encrypted_message or not user_id:
+        return jsonify({'error': 'Missing encrypted_message or userId'}), 400
+
+    # Decrypt the message using a 'broken' decryption function for debugging
+    decrypted = broken_decrypt(encrypted_message, user_id)
+    return jsonify({'decrypted_message': decrypted}), 200
+
+if __name__ == '__main__':
+    # Run the Flask app in debug mode
+    app.run(debug=True)
