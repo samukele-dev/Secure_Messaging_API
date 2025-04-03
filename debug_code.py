@@ -90,3 +90,33 @@ def test_broken_decrypt():
     # Assert that decryption fails or the decrypted message doesn't match the original plaintext
     assert "Decryption failed" in decrypted_message or plaintext != decrypted_message
 
+# Fixed decrypt function (corrects issues in broken_decrypt)
+def fixed_decrypt(encrypted_message_b64, user_id):
+    try:
+        # Decode the base64-encoded encrypted message
+        encrypted_payload = base64.b64decode(encrypted_message_b64)
+        
+        # Extract salt, IV, and ciphertext from the payload
+        salt = encrypted_payload[:16]  # First 16 bytes: salt
+        iv = encrypted_payload[16:32]  # Next 16 bytes: IV
+        ciphertext = encrypted_payload[32:]  # Remaining bytes: ciphertext
+        
+        # Derive the key using the user ID and extracted salt
+        key = derive_key(user_id, salt)
+
+        # Set up AES cipher in CBC mode for decryption
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        
+        # Decrypt the ciphertext
+        padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+
+        # Remove padding from the decrypted message
+        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+        plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+
+        # Return the decrypted plaintext message
+        return plaintext.decode('utf-8')
+    except Exception as e:
+        # Return error message if decryption fails
+        return f"Decryption failed: {e}"
