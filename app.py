@@ -156,6 +156,13 @@ def debug_decrypt_endpoint():
     decrypted = broken_decrypt(encrypted_message, user_id)
     return jsonify({'decrypted_message': decrypted}), 200
 
+
+@app.route('/')
+def index():
+    return "Welcome to the Secure Messaging API!"
+
+
 if __name__ == '__main__':
     # Run the Flask app in debug mode
     app.run(debug=True)
+
