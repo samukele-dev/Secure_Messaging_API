@@ -57,3 +57,36 @@ def broken_decrypt(encrypted_message_b64, user_id):
     except Exception as e:
         # Return error message if decryption fails
         return f"Decryption failed: {e}"
+
+# Test case to reproduce the problem with broken decryption
+def test_broken_decrypt():
+    user_id = "test_user"  # Example user ID
+    salt = generate_salt()  # Generate a random salt
+    key = derive_key(user_id, salt)  # Derive the key using the user ID and salt
+    iv = os.urandom(16)  # Generate a random initialization vector (IV)
+    plaintext = "This is a secret message for debugging."  # Message to encrypt
+    
+    # Apply padding to the plaintext to make it a multiple of the AES block size
+    padder = padding.PKCS7(algorithms.AES.block_size).padder()
+    padded_plaintext = padder.update(plaintext.encode('utf-8')) + padder.finalize()
+
+    # Set up AES cipher in CBC mode with the derived key and IV
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    
+    # Encrypt the padded plaintext
+    ciphertext = encryptor.update(padded_plaintext) + encryptor.finalize()
+
+    # Combine salt, IV, and ciphertext into a single encrypted payload
+    encrypted_payload = salt + iv + ciphertext
+    
+    # Base64 encode the encrypted payload to prepare for transmission
+    encrypted_message_b64 = base64.b64encode(encrypted_payload).decode('utf-8')
+
+    # Attempt to decrypt the message using the broken decryption function
+    decrypted_message = broken_decrypt(encrypted_message_b64, user_id)
+    print(f"Test with broken decrypt: {decrypted_message}")
+
+    # Assert that decryption fails or the decrypted message doesn't match the original plaintext
+    assert "Decryption failed" in decrypted_message or plaintext != decrypted_message
+
