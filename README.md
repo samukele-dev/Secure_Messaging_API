@@ -23,13 +23,11 @@ These extracted components (salt, IV, and ciphertext) are then used in the AES-2
 
 **How User ID Spoofing is Prevented:**
 
-The current implementation, which relies on the client providing the `userId` in the request body without any further authentication, is **vulnerable to user ID spoofing**. A malicious user could potentially try to access another user's messages if they knew their `userId`.
+The current implementation now includes basic token-based authentication to mitigate user ID spoofing. Upon successful registration and login, a unique, time-limited token is issued to the user. Subsequent requests to access protected resources (like storing and retrieving messages) require this token to be included in the `Authorization` header of the HTTP request. The server verifies the token to ensure the user is authenticated and authorized to perform the requested action for the associated `userId`. While basic, this adds a layer of security compared to relying solely on the `userId` in the request body.
 
-To prevent user ID spoofing in a real-world application, a robust authentication mechanism is essential. Here are some common approaches:
+**Message Expiry:**
 
-* **Token-Based Authentication (e.g., JWT):** Upon successful login, the server would issue a unique, time-limited token to the user. Subsequent requests to access protected resources (like messages) would require the client to include this token in the `Authorization` header (typically as a Bearer token). The server would then verify the authenticity and validity of the token before processing the request, ensuring that the user making the request is indeed who they claim to be. The token would be associated with a specific `userId` on the server-side.
-* **Session Management:** After login, the server creates a session for the user and stores a session identifier (e.g., in a cookie). Subsequent requests from the same user would include this session identifier, allowing the server to identify and authenticate the user based on the server-side session data.
-
+Messages are now automatically deleted after 10 minutes. When a message is stored, a timestamp is recorded. Before processing requests for messages, the system checks for and removes any messages older than the defined expiry time.
 
 ## Debug Task
 
@@ -79,7 +77,6 @@ def fixed_decrypt(encrypted_message_b64, user_id):
     except Exception as e:
         return f"Decryption failed: {e}"
 
-
 ## Instructions to Run the Project
 
 1.  Open your terminal or command prompt.
@@ -97,25 +94,46 @@ def fixed_decrypt(encrypted_message_b64, user_id):
     ```
 
 5.  Ensure you have Python 3.6+ installed.
-6.  Navigate to the `secure_messaging_api` directory in your terminal.
-7.  It is highly recommended to create and activate a virtual environment:
+6.  It is highly recommended to create and activate a virtual environment:
     ```bash
     python -m venv venv
     source venv/bin/activate  # On Linux/macOS
     venv\Scripts\activate   # On Windows
     ```
-8.  Install the required dependencies:
+7.  Install the required dependencies:
     ```bash
     pip install -r requirements.txt
     ```
-9.  Run the Flask development server:
+8.  Run the Flask development server:
     ```bash
     python app.py
     ```
     The server will typically start at `http://127.0.0.1:5000`.
-10.  You can then use tools like `curl`, Postman, or a web browser to interact with the API endpoints:
-    * **POST /messages:** Send a JSON payload with `userId` and `message` to store a new encrypted message.
-    * **GET /messages/<user_id>:** Replace `<user_id>` with the desired user's ID to retrieve their decrypted messages.
-    * **POST /debug/decrypt:** Send a JSON payload with `userId` and a base64 encoded encrypted message to test the `broken_decrypt()` function. You can generate a test encrypted message using the `test_broken_decrypt()` function in `debug_code.py` or by storing a message via the `/messages` endpoint and copying the encrypted string.
+9.  **Register and Log In:**
+    * **Register:** Use `curl` to register a user (replace `your_desired_user_id` for example 'test_user'):
+      ```bash
+      curl -X POST -H "Content-Type: application/json" -d '{"userId": "your_desired_user_id"}' http://127.0.0.1:5000/register
+      ```
+    * **Log In:** Use `curl` to log in and get a token (replace `your_desired_user_id`):
+      ```bash
+      curl -X POST -H "Content-Type: application/json" -d '{"userId": "your_desired_user_id"}' http://127.0.0.1:5000/login
+      ```
+      This will return a JSON response containing a `token`. Copy this token.
+10. **Interacting with API Endpoints using `curl`:**
+    * **POST /messages (Store a message):** Include the token in the `Authorization` header:
+      ```bash
+      curl -X POST -H "Content-Type: application/json" -H "Authorization: <your_copied_token>" -d '{"message": "This is my secret message."}' http://127.0.0.1:5000/messages
+      ```
+      Replace `<your_copied_token>` with the actual token.
+    * **GET /messages/<user_id> (Retrieve messages):** Include the token in the `Authorization` header and use the correct `userId`:
+      ```bash
+      curl -X GET -H "Authorization: <your_copied_token>" http://127.0.0.1:5000/messages/your_desired_user_id
+      ```
+      Replace `<your_copied_token>` and `your_desired_user_id` with your actual values.
+    * **POST /debug/decrypt (Debug decryption):**
+      ```bash
+      curl -X POST -H "Content-Type: application/json" -d '{"userId": "test_user", "encrypted_message": "base64_encoded_message"}' http://127.0.0.1:5000/debug/decrypt
+      ```
+      Replace `"base64_encoded_message"` with an actual base64 encoded encrypted message you want to debug.
 
 Remember to stop the Flask development server by pressing `Ctrl + C` in your terminal when you are finished testing.
