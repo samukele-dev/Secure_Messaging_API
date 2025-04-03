@@ -19,6 +19,7 @@ USER_SALTS = {}
 def generate_salt():
     return os.urandom(16)
 
+
 def derive_key(user_id, salt=None):
     if salt is None:
         salt = USER_SALTS.get(user_id)
@@ -33,6 +34,7 @@ def derive_key(user_id, salt=None):
     )
     key = kdf.derive(user_id.encode('utf-8'))
     return key
+
 
 def encrypt_message(message, user_id):
     # Generate a unique salt for the user
@@ -62,3 +64,33 @@ def encrypt_message(message, user_id):
     encrypted_payload = salt + iv + ciphertext
     return base64.b64encode(encrypted_payload).decode('utf-8')
 
+
+def decrypt_message(encrypted_message_b64, user_id):
+    try:
+        # Decode the base64-encoded encrypted message
+        encrypted_payload = base64.b64decode(encrypted_message_b64)
+        
+        # Extract the salt, IV, and ciphertext from the payload
+        salt = encrypted_payload[:16]
+        iv = encrypted_payload[16:32]
+        ciphertext = encrypted_payload[32:]
+        
+        # Derive the key using the user ID and salt
+        key = derive_key(user_id, salt)
+
+        # Set up AES cipher in CBC mode
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        
+        # Create decryptor and decrypt the ciphertext
+        decryptor = cipher.decryptor()
+        padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+
+        # Remove padding from the decrypted message
+        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+        plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+
+        # Return the decrypted message as a string
+        return plaintext.decode('utf-8')
+    except Exception as e:
+        # Return error message if decryption fails
+        return f"Decryption failed: {e}"
