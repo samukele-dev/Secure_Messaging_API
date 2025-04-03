@@ -28,6 +28,8 @@ def derive_key(user_id, salt):
     key = kdf.derive(user_id.encode('utf-8'))
     return key
 
+
+# Broken decryption function (incorrect handling of salt and key derivation)
 def broken_decrypt(encrypted_message_b64, user_id):
     try:
         # Decode the base64-encoded encrypted message
@@ -57,6 +59,7 @@ def broken_decrypt(encrypted_message_b64, user_id):
     except Exception as e:
         # Return error message if decryption fails
         return f"Decryption failed: {e}"
+
 
 # Test case to reproduce the problem with broken decryption
 def test_broken_decrypt():
@@ -90,6 +93,7 @@ def test_broken_decrypt():
     # Assert that decryption fails or the decrypted message doesn't match the original plaintext
     assert "Decryption failed" in decrypted_message or plaintext != decrypted_message
 
+
 # Fixed decrypt function (corrects issues in broken_decrypt)
 def fixed_decrypt(encrypted_message_b64, user_id):
     try:
@@ -120,3 +124,42 @@ def fixed_decrypt(encrypted_message_b64, user_id):
     except Exception as e:
         # Return error message if decryption fails
         return f"Decryption failed: {e}"
+
+
+# Test case for the fixed decrypt function
+def test_fixed_decrypt():
+    user_id = "test_user"  # Example user ID
+    salt = generate_salt()  # Generate a random salt
+    key = derive_key(user_id, salt)  # Derive the key using the user ID and salt
+    iv = os.urandom(16)  # Generate a random initialization vector (IV)
+    plaintext = "This is a secret message for testing the fix."  # Message to encrypt
+    
+    # Apply padding to the plaintext to match the AES block size
+    padder = padding.PKCS7(algorithms.AES.block_size).padder()
+    padded_plaintext = padder.update(plaintext.encode('utf-8')) + padder.finalize()
+
+    # Set up AES cipher in CBC mode with the derived key and IV
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    
+    # Encrypt the padded plaintext
+    ciphertext = encryptor.update(padded_plaintext) + encryptor.finalize()
+
+    # Combine salt, IV, and ciphertext into a single encrypted payload
+    encrypted_payload = salt + iv + ciphertext
+    
+    # Base64 encode the encrypted payload to prepare for transmission
+    encrypted_message_b64 = base64.b64encode(encrypted_payload).decode('utf-8')
+
+    # Decrypt the message using the fixed decryption function
+    decrypted_message = fixed_decrypt(encrypted_message_b64, user_id)
+    print(f"Test with fixed decrypt: {decrypted_message}")
+
+    # Assert that the decrypted message matches the original plaintext
+    assert plaintext == decrypted_message
+
+if __name__ == "__main__":
+    # Run both tests: broken decrypt and fixed decrypt
+    test_broken_decrypt()
+    test_fixed_decrypt()
+
